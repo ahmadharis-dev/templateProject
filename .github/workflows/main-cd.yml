@@ -19,21 +19,24 @@ jobs:
 
       - name: Setup SSH & Deploy
         env:
-          SSH_PRIVATE_KEY:  ${{ secrets.PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           SSH_HOST: ssh.serversandgen.web.id
           SSH_USER: ${{ secrets.USERNAME }}
         run: |
-          # 1. Setup kunci SSH agar bisa digunakan oleh sistem
           mkdir -p ~/.ssh
+          # Pastikan penulisan key tidak ada spasi/line break yang aneh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa-github-action-first-html
           chmod 600 ~/.ssh/id_rsa-github-action-first-html
           
-          # 2. Skip host key verification (agar tidak muncul prompt yes/no)
           ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
 
-          # 3. Jalankan SSH dengan ProxyCommand Cloudflared
-          ssh -i ~/.ssh/id_rsa-github-action-first-html -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" $SSH_USER@$SSH_HOST << 'EOF'
-            cd /var/www/html/templateProject
-            git pull origin main
-            git status
+          # Tambahkan -vvv untuk melihat detail error jika gagal lagi
+          ssh -vvv -i ~/.ssh/id_rsa-github-action-first-html \
+            -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" \
+            -o "StrictHostKeyChecking=no" \
+            $SSH_USER@$SSH_HOST << 'EOF'
+              cd /var/www/html/templateProject
+              git pull origin main
+              git status
           EOF
+   
