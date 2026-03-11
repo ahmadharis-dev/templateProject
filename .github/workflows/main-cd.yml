@@ -11,14 +11,21 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+        
+      - name: Install cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
 
-      - name: Deploy html to Server
+      - name: Deploy via SSH Tunnel
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ssh.serversandgen.web.id
           username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.PRIVATE_KEY }}
+          key: ${{ secrets.KEY }}
           port: 22
+          # BAGIAN KRUSIAL: Memberitahu SSH untuk lewat tunnel
+          proxy_command: cloudflared access ssh --hostname ssh.serversandgen.web.id
           script: |
             cd /var/www/html/templateProject
             git pull origin main
