@@ -24,49 +24,38 @@ jobs:
           SSH_HOST: ssh.serversandgen.web.id
           SSH_USER: ${{ secrets.USERNAME }}
         run: |
-          # Setup SSH
+          # Setup SSH Local (GitHub Runner)
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # Test the connection first
-          echo "Testing SSH connection..."
-          ssh -i ~/.ssh/id_rsa \
-            -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" \
-            -o "StrictHostKeyChecking=no" \
-            -o "UserKnownHostsFile=/dev/null" \
-            -o "ConnectTimeout=10" \
-            $SSH_USER@$SSH_HOST "echo 'SSH connection successful'"
-          
-          # Run the deployment with Git safe.directory fix
           echo "Running deployment..."
           ssh -i ~/.ssh/id_rsa \
             -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" \
             -o "StrictHostKeyChecking=no" \
             -o "UserKnownHostsFile=/dev/null" \
             $SSH_USER@$SSH_HOST << 'EOF'
-              set -e  # Exit on error
+              set -e
               
-              # Fix the Git dubious ownership issue
-              echo "Adding safe.directory configuration..."
-              git config --global --add safe.directory /var/www/html/templateProject
+              PROJECT_PATH="/var/www/html/templateProject"
               
-              # Navigate to the project directory
-              cd /var/www/html/templateProject || { 
-                echo "Directory not found. Cloning repository instead..."
+              # Tambahkan ke safe directory agar git tidak error
+              git config --global --add safe.directory "$PROJECT_PATH"
+              
+              if [ -d "$PROJECT_PATH/.git" ]; then
+                echo "Directory exists, pulling latest changes..."
+                cd "$PROJECT_PATH"
+                # Paksa ambil data terbaru dan reset jika ada konflik kecil
+                git fetch origin main
+                git reset --hard origin/main
+              else
+                echo "Directory not found or not a git repo. Cloning..."
                 cd /var/www/html
-                git clone git@github.com:yourusername/templateProject.git || {
-                  echo "Failed to clone repository"
-                  exit 1
-                }
+                # Gunakan HTTPS agar tidak perlu setup SSH key lagi di sisi server
+                git clone https://github.com/yourusername/templateProject.git
                 cd templateProject
-              }
+              fi
               
-              # Pull the latest changes
-              echo "Pulling latest changes..."
-              git pull origin main
-              
-              # Show current status
               echo "Current git status:"
               git status
               
