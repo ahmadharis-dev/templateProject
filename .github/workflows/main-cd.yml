@@ -16,6 +16,7 @@ jobs:
         run: |
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
+          cloudflared --version
 
       - name: Setup SSH & Deploy
         env:
@@ -23,20 +24,30 @@ jobs:
           SSH_HOST: ssh.serversandgen.web.id
           SSH_USER: ${{ secrets.USERNAME }}
         run: |
+          # Setup SSH
           mkdir -p ~/.ssh
-          # Pastikan penulisan key tidak ada spasi/line break yang aneh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa-github-action-first-html
-          chmod 600 ~/.ssh/id_rsa-github-action-first-html
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
           
-          ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
-
-          # Tambahkan -vvv untuk melihat detail error jika gagal lagi
-          ssh -vvv -i ~/.ssh/id_rsa-github-action-first-html \
+          # Test the connection first
+          echo "Testing SSH connection..."
+          ssh -i ~/.ssh/id_rsa \
             -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" \
             -o "StrictHostKeyChecking=no" \
+            -o "UserKnownHostsFile=/dev/null" \
+            -o "ConnectTimeout=10" \
+            $SSH_USER@$SSH_HOST "echo 'SSH connection successful'"
+          
+          # If successful, run the deployment
+          echo "Running deployment..."
+          ssh -i ~/.ssh/id_rsa \
+            -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" \
+            -o "StrictHostKeyChecking=no" \
+            -o "UserKnownHostsFile=/dev/null" \
             $SSH_USER@$SSH_HOST << 'EOF'
-              cd /var/www/html/templateProject
+              set -e  # Exit on error
+              cd /var/www/html/templateProject || { echo "Directory not found"; exit 1; }
               git pull origin main
               git status
+              echo "Deployment completed successfully!"
           EOF
-   
