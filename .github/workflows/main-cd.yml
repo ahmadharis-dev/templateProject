@@ -38,7 +38,7 @@ jobs:
             -o "ConnectTimeout=10" \
             $SSH_USER@$SSH_HOST "echo 'SSH connection successful'"
           
-          # If successful, run the deployment
+          # Run the deployment with Git safe.directory fix
           echo "Running deployment..."
           ssh -i ~/.ssh/id_rsa \
             -o "ProxyCommand=cloudflared access ssh --hostname $SSH_HOST" \
@@ -46,8 +46,29 @@ jobs:
             -o "UserKnownHostsFile=/dev/null" \
             $SSH_USER@$SSH_HOST << 'EOF'
               set -e  # Exit on error
-              cd /var/www/html/templateProject || { echo "Directory not found"; exit 1; }
+              
+              # Fix the Git dubious ownership issue
+              echo "Adding safe.directory configuration..."
+              git config --global --add safe.directory /var/www/html/templateProject
+              
+              # Navigate to the project directory
+              cd /var/www/html/templateProject || { 
+                echo "Directory not found. Cloning repository instead..."
+                cd /var/www/html
+                git clone git@github.com:yourusername/templateProject.git || {
+                  echo "Failed to clone repository"
+                  exit 1
+                }
+                cd templateProject
+              }
+              
+              # Pull the latest changes
+              echo "Pulling latest changes..."
               git pull origin main
+              
+              # Show current status
+              echo "Current git status:"
               git status
+              
               echo "Deployment completed successfully!"
           EOF
